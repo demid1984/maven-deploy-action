@@ -22,6 +22,10 @@ inputs:
     description: 'Пароль файла секретов'
     required: false
     default: ''
+  application-version:
+    description: 'Версия приложения для деплоя'
+    required: false
+    default: ''
   deploy-timeout:
     description: 'Время ожидания деплоя приложения в секундах'
     required: false
@@ -42,8 +46,16 @@ runs:
     - name: Extract project info
       shell: bash
       id: project-info
+      env:
+        INPUT_VERSION: ${{ inputs.application-version }}
       run: |
         VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        if [[ -n "$INPUT_VERSION" ]]; then
+          VERSION="$INPUT_VERSION"
+        else
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        fi
+
         APPLICATION_NAME=$(./mvnw help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
         echo "Extracted application name with version: $APPLICATION_NAME:$VERSION"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
