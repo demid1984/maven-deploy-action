@@ -1,0 +1,45 @@
+name: Create alpha release version
+
+on:
+  push:
+    branches: [ "test" ]
+  workflow_dispatch:
+
+jobs:
+  create_release:
+    name: Create alpha release
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+      pull-requests: write
+      id-token: write
+    outputs:
+      version: ${{ steps.setup.outputs.version }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Fill env variables
+        id: env
+        run: |
+          version=$(cat .version)
+          next_version=$(echo $version | awk -F'\.' '{printf "%s.%s.%s", $1, $2, $3 + 1}')
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "next_version=$next_version" >> $GITHUB_OUTPUT
+      - name: Publish API specification
+        id: publish-api
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.env.outputs.version }}
+      - name: Create next alpha release version
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          sed -i "s/${{ steps.env.outputs.version }}/${{ steps.env.outputs.next_version }}/g" .version
+          git commit -am "Release ${{ steps.env.outputs.next_version }}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,117 @@
+name: 'Deploy action'
+description: 'Запуск деплоя приложения в kubernetes'
+author: 'demid1984'
+branding:
+  icon: 'package'
+  color: 'blue'
+
+inputs:
+  deployment-file-path:
+    description: 'Путь к шаблону файла deployment'
+    required: true
+  service-file-path:
+    description: 'Путь к шаблону файла service'
+    required: true
+  kube-config:
+    description: 'kubernetes config'
+    required: true
+  kube-namespace:
+    description: 'kubernetes namespace'
+    required: true
+  gpg-passphase:
+    description: 'Пароль файла секретов'
+    required: false
+    default: ''
+  deploy-timeout:
+    description: 'Время ожидания деплоя приложения в секундах'
+    required: false
+    default: '300'
+  env-vars-multiline:
+    description: 'Переменные окружения в формате KEY=VALUE (каждая на новой строке)'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check out the repo
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
+        fetch-depth: 0
+
+    - name: Extract project info
+      shell: bash
+      id: project-info
+      run: |
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        APPLICATION_NAME=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
+        echo "Extracted application name with version: $APPLICATION_NAME:$VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "application=$APPLICATION_NAME" >> $GITHUB_OUTPUT
+
+    - name: Export to environment
+      shell: bash
+      run: |
+        ENV_VARS='${{ inputs.env-vars-multiline }}'
+
+        if [ -n "$ENV_VARS" ]; then
+          echo "Setting environment variables..."
+        
+          IFS=$'\n'
+          for line in $ENV_VARS; do
+            # Пропускаем пустые строки и комментарии
+            if [ -n "$line" ] && [[ ! "$line" =~ ^[[:space:]]*# ]]; then
+              # Разделяем ключ и значение
+              key=$(echo "$line" | cut -d'=' -f1)
+              value=$(echo "$line" | cut -d'=' -f2-)
+            
+              # Устанавливаем переменную окружения
+              echo "${key}=${value}" >> $GITHUB_ENV
+            fi
+          done
+          unset IFS
+        fi
+
+        echo "APPLICATION_NAME=${{ steps.project-info.outputs.application }}" >> $GITHUB_ENV
+        echo "VERSION=${{ steps.project-info.outputs.version }}" >> $GITHUB_ENV
+
+    - name: Generate Kubernetes manifest
+      shell: bash
+      run: |
+        envsubst < kubernetes/deployment.yaml > deployment.yaml
+        envsubst < kubernetes/service.yaml > service.yaml
+
+    - name: Configure Kubernetes access
+      uses: azure/k8s-set-context@v3
+      with:
+        kubeconfig: ${{ inputs.kube-config }}
+
+    - name: Update config
+      shell: bash
+      id: update-config
+      run: |
+        kubectl -n ${{ inputs.kube-namespace }} delete configmap ${{ steps.project-info.outputs.application }}-config-${{ inputs.kube-namespace }} --ignore-not-found
+        kubectl -n=${{ inputs.kube-namespace }} create configmap ${{ steps.project-info.outputs.application }}-config-${{ inputs.kube-namespace }} --from-file=kubernetes/config/${{ inputs.kube-namespace }}/application.properties
+
+    - name: Update secrets
+      shell: bash
+      id: update-secrets
+      if: ${{ inputs.gpg-passphase != '' }}
+      run: |
+        echo ${{ inputs.gpg-passphase }} | gpg --batch --passphrase-fd 0 --output kubernetes/secrets/${{ inputs.kube-namespace }}/secrets.properties --decrypt kubernetes/secrets/${{ inputs.kube-namespace }}/secrets.properties.gpg
+        kubectl -n ${{ inputs.kube-namespace }} delete secret ${{ steps.project-info.outputs.application }}-${{ inputs.kube-namespace }} --ignore-not-found
+        kubectl -n ${{ inputs.kube-namespace }} create secret generic ${{ steps.project-info.outputs.application }}-${{ inputs.kube-namespace }} \
+          --from-env-file kubernetes/secrets/${{ inputs.kube-namespace }}/secrets.properties
+        rm kubernetes/secrets/${{ inputs.kube-namespace }}/secrets.properties
+
+    - name: Apply Deployment
+      shell: bash
+      run: kubectl -n ${{ inputs.kube-namespace }} apply -f deployment.yaml
+
+    - name: Apply Service
+      shell: bash
+      run: kubectl -n ${{ inputs.kube-namespace }} apply -f service.yaml
+
+    - name: Wait for Deployment
+      shell: bash
+      run: kubectl -n ${{ inputs.kube-namespace }} rollout status deployment/${{ steps.project-info.outputs.application }} --timeout=${{ inputs.deploy-timeout }}s
