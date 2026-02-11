@@ -115,7 +115,7 @@
 
 ```yaml
 - name: Deploy to Kubernetes
-  uses: ./actions/deploy-action
+  uses: demid1984/maven-deploy-action@v0.0.2
   with:
     deployment-file-path: kubernetes/deployment.yaml
     service-file-path: kubernetes/service.yaml
@@ -136,7 +136,7 @@
 ## Требования
 
 - Работает в **GitHub-hosted runner** (Ubuntu).
-- Maven установлен и доступен в `PATH`.
+- В проекте есть maven-wrapper mvnw (если нет, создается командой mvn wrapper:wrapper)
 - Bash (`envsubst`, `gpg`, `kubectl`) доступен в окружении.
 - Структура файлов и именований соответствует ожидаемой (см. выше).
 

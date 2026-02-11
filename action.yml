@@ -43,8 +43,8 @@ runs:
       shell: bash
       id: project-info
       run: |
-        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        APPLICATION_NAME=$(mvn help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
+        VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        APPLICATION_NAME=$(./mvnw help:evaluate -Dexpression=project.artifactId -q -DforceStdout)
         echo "Extracted application name with version: $APPLICATION_NAME:$VERSION"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "application=$APPLICATION_NAME" >> $GITHUB_OUTPUT
