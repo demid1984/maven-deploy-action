@@ -86,6 +86,7 @@ runs:
 
         echo "APPLICATION_NAME=${{ steps.project-info.outputs.application }}" >> $GITHUB_ENV
         echo "VERSION=${{ steps.project-info.outputs.version }}" >> $GITHUB_ENV
+        echo "NAMESPACE=${{ inputs.kube-namespace }}" >> $GITHUB_ENV
 
     - name: Generate Kubernetes manifest
       shell: bash
