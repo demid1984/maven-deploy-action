@@ -79,10 +79,10 @@
     - Добавляются системные переменные: `APPLICATION_NAME` и `VERSION`.
 
 4. **Генерация манифестов Kubernetes**
-   `envsubst` подставляет переменные окружения в шаблоны:
+   Запускается сборка ресурсов в проекте и далее `envsubst` подставляет переменные окружения в шаблоны:
    ```bash
-   envsubst < kubernetes/deployment.yaml > deployment.yaml
-   envsubst < kubernetes/service.yaml > service.yaml
+   envsubst < inputs.deployment-file-path > deployment.yaml
+   envsubst < inputs.service-file-path > service.yaml
    ```
 
 5. **Аутентификация в Kubernetes**

@@ -91,8 +91,9 @@ runs:
     - name: Generate Kubernetes manifest
       shell: bash
       run: |
-        envsubst < kubernetes/deployment.yaml > deployment.yaml
-        envsubst < kubernetes/service.yaml > service.yaml
+        ./mvnw resources:resources
+        envsubst < ${{ inputs.deployment-file-path }} > deployment.yaml
+        envsubst < ${{ inputs.service-file-path }} > service.yaml
 
     - name: Configure Kubernetes access
       uses: azure/k8s-set-context@v3
